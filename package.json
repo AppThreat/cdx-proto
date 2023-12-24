@@ -1,0 +1,68 @@
+{
+  "name": "cdx-proto",
+  "version": "0.0.1",
+  "description": "Library to serialize/deserialize CycloneDX BOM with protocol buffers",
+  "type": "module",
+  "exports": {
+    "types": "./dist/source/index.d.ts",
+    "default": "./dist/source/index.js"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AppThreat/cdx-proto.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AppThreat/cdx-proto/issues"
+  },
+  "scripts": {
+    "lint": "tsc --noEmit",
+    "build": "npx buf generate specification && tsc",
+    "prepare": "npm run build"
+  },
+  "files": [
+    "dist",
+    "specification"
+  ],
+  "keywords": [
+    "cyclonedx",
+    "sbom",
+    "supply-chain",
+    "protobuf",
+    "protobom"
+  ],
+  "author": "Team AppThreat <cloud@appthreat.com>",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@bufbuild/protobuf": "^1.6.0"
+  },
+  "devDependencies": {
+    "@bufbuild/buf": "^1.28.1",
+    "@bufbuild/protoc-gen-es": "^1.6.0",
+    "typescript": "^5.3.3",
+    "xo": "^0.56.0"
+  },
+  "xo": {
+    "ignores": [
+      "docs/*",
+      "contrib/*",
+      "specification/*"
+    ],
+    "rules": {
+      "@typescript-eslint/no-empty-function": "off",
+      "@typescript-eslint/no-implicit-any-catch": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/no-unsafe-return": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-call": "off",
+      "@typescript-eslint/await-thenable": "off",
+      "@typescript-eslint/no-redundant-type-constituents": "off",
+      "@typescript-eslint/no-unsafe-argument": "off",
+      "@typescript-eslint/promise-function-async": "off",
+      "no-lone-blocks": "off"
+    }
+  }
+}
