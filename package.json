@@ -1,6 +1,6 @@
 {
   "name": "@appthreat/cdx-proto",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Library to serialize/deserialize CycloneDX BOM with protocol buffers",
   "type": "module",
   "exports": {
