@@ -2028,9 +2028,9 @@ export class Component extends Message<Component> {
   /**
    * Specifies optional license and copyright evidence
    *
-   * @generated from field: repeated cyclonedx.v1_5.Evidence evidence = 23;
+   * @generated from field: optional cyclonedx.v1_5.Evidence evidence = 23;
    */
-  evidence: Evidence[] = [];
+  evidence?: Evidence;
 
   /**
    * Specifies optional release notes.
@@ -2083,7 +2083,7 @@ export class Component extends Message<Component> {
     { no: 20, name: "external_references", kind: "message", T: ExternalReference, repeated: true },
     { no: 21, name: "components", kind: "message", T: Component, repeated: true },
     { no: 22, name: "properties", kind: "message", T: Property, repeated: true },
-    { no: 23, name: "evidence", kind: "message", T: Evidence, repeated: true },
+    { no: 23, name: "evidence", kind: "message", T: Evidence, opt: true },
     { no: 24, name: "releaseNotes", kind: "message", T: ReleaseNotes, opt: true },
     { no: 25, name: "modelCard", kind: "message", T: ModelCard, opt: true },
     { no: 26, name: "data", kind: "message", T: ComponentData, opt: true },
@@ -3796,9 +3796,9 @@ export class Evidence extends Message<Evidence> {
   copyright: EvidenceCopyright[] = [];
 
   /**
-   * @generated from field: repeated cyclonedx.v1_5.EvidenceIdentity identity = 3;
+   * @generated from field: optional cyclonedx.v1_5.EvidenceIdentity identity = 3;
    */
-  identity: EvidenceIdentity[] = [];
+  identity?: EvidenceIdentity;
 
   /**
    * @generated from field: repeated cyclonedx.v1_5.EvidenceOccurrences occurrences = 4;
@@ -3820,7 +3820,7 @@ export class Evidence extends Message<Evidence> {
   static readonly fields: FieldList = proto3.util.newFieldList(() => [
     { no: 1, name: "licenses", kind: "message", T: LicenseChoice, repeated: true },
     { no: 2, name: "copyright", kind: "message", T: EvidenceCopyright, repeated: true },
-    { no: 3, name: "identity", kind: "message", T: EvidenceIdentity, repeated: true },
+    { no: 3, name: "identity", kind: "message", T: EvidenceIdentity, opt: true },
     { no: 4, name: "occurrences", kind: "message", T: EvidenceOccurrences, repeated: true },
     { no: 5, name: "callstack", kind: "message", T: Callstack, opt: true },
   ]);
