@@ -4,8 +4,8 @@
   "description": "Library to serialize/deserialize CycloneDX BOM with protocol buffers",
   "type": "module",
   "exports": {
-    "types": "./dist/source/index.d.ts",
-    "default": "./dist/source/index.js"
+    "types": "./dist/index.d.ts",
+    "default": "./dist/index.js"
   },
   "sideEffects": false,
   "engines": {
