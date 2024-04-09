@@ -2203,9 +2203,9 @@ export class Component extends Message<Component> {
   /**
    * Specifies optional license and copyright evidence
    *
-   * @generated from field: repeated cyclonedx.v1_6.Evidence evidence = 23;
+   * @generated from field: optional cyclonedx.v1_6.Evidence evidence = 23;
    */
-  evidence: Evidence[] = [];
+  evidence?: Evidence;
 
   /**
    * Specifies optional release notes.
@@ -2300,7 +2300,7 @@ export class Component extends Message<Component> {
     { no: 20, name: "external_references", kind: "message", T: ExternalReference, repeated: true },
     { no: 21, name: "components", kind: "message", T: Component, repeated: true },
     { no: 22, name: "properties", kind: "message", T: Property, repeated: true },
-    { no: 23, name: "evidence", kind: "message", T: Evidence, repeated: true },
+    { no: 23, name: "evidence", kind: "message", T: Evidence, opt: true },
     { no: 24, name: "releaseNotes", kind: "message", T: ReleaseNotes, opt: true },
     { no: 25, name: "modelCard", kind: "message", T: ModelCard, opt: true },
     { no: 26, name: "data", kind: "message", T: ComponentData, opt: true },
