@@ -5,7 +5,7 @@ Runtime library to serialize/deserialize CycloneDX BOM with protocol buffers. Th
 ## Sample usage
 
 ```js
-import { cdx_15, cdx_16 } from "@appthreat/cdx-proto";
+import { cdx_16, cdx_17 } from "@appthreat/cdx-proto";
 import {
   fromBinary,
   fromJsonString,
@@ -13,13 +13,9 @@ import {
   toJson,
 } from "@bufbuild/protobuf";
 
-// Create .proto files 
-let bomSchema;
-if (+bomJson.specVersion === 1.6) {
-  bomSchema = cdx_16.BomSchema;
-} else {
-  bomSchema = cdx_15.BomSchema;
-}
+// Create .proto files
+let bomSchema =
+  +bomJson.specVersion === 1.6 ? cdx_16.BomSchema : cdx_17.BomSchema;
 writeFileSync(
   binFile,
   toBinary(
