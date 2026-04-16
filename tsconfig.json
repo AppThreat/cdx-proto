@@ -1,35 +1,34 @@
 {
 	"compilerOptions": {
-		"outDir": "dist",
-		"module": "node16",
-		"moduleResolution": "node16",
-		"moduleDetection": "force",
-		"target": "es2020",
-		"lib": [
-			"es2020"
-		],
-        "noPropertyAccessFromIndexSignature": false,
+		"target": "es2022",
+		"lib": ["es2022"],
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
+		"verbatimModuleSyntax": true,
+		"esModuleInterop": true,
+		"resolveJsonModule": true,
 		"isolatedModules": true,
-		"allowSyntheticDefaultImports": true,
-		"resolveJsonModule": false,
-		"jsx": "react",
+		"jsx": "react-jsx",
 		"declaration": true,
-		"pretty": true,
-		"newLine": "lf",
-		"stripInternal": true,
+		"declarationMap": true,
+		"sourceMap": true,
+		"outDir": "dist",
+		"rootDir": "source",
 		"strict": true,
-		"noImplicitReturns": true,
+		"noUncheckedIndexedAccess": true,
 		"noImplicitOverride": true,
+		"noImplicitReturns": true,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
 		"noFallthroughCasesInSwitch": true,
-		"noUncheckedIndexedAccess": true,
-		"noEmitOnError": true,
-		"useDefineForClassFields": true,
 		"forceConsistentCasingInFileNames": true,
-		"skipLibCheck": true
+		"skipLibCheck": true,
+		"pretty": true,
+		"newLine": "lf",
+		"stripInternal": true,
+		"useDefineForClassFields": true,
+		"noEmitOnError": true,
+		"noPropertyAccessFromIndexSignature": false
 	},
-    "include": [
-		"source"
-	]
+	"include": ["source"]
 }
