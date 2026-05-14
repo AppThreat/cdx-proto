@@ -1,13 +1,13 @@
-import {execFileSync} from "node:child_process";
-import {mkdirSync, rmSync} from "node:fs";
-import {fileURLToPath} from "node:url";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, rmSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 const artifactDirectory = new URL("../.artifacts", import.meta.url);
 const artifactPath = fileURLToPath(artifactDirectory);
 const workspacePath = fileURLToPath(new URL("..", import.meta.url));
 
-rmSync(artifactPath, {force: true, recursive: true});
-mkdirSync(artifactPath, {recursive: true});
+rmSync(artifactPath, { force: true, recursive: true });
+mkdirSync(artifactPath, { recursive: true });
 
 const stdout = execFileSync(
   "npm",
@@ -49,7 +49,9 @@ for (const requiredPath of requiredPaths) {
 
 for (const filePath of filePaths) {
   if (filePath === "docs" || filePath.startsWith("docs/")) {
-    throw new Error(`Packed artifact must not include documentation files: '${filePath}'.`);
+    throw new Error(
+      `Packed artifact must not include documentation files: '${filePath}'.`,
+    );
   }
 }
 
@@ -60,4 +62,6 @@ if (packResult.size <= 0 || packResult.unpackedSize <= 0) {
 console.log(
   `Verified npm package ${packResult.name}@${packResult.version} (${packResult.filename}) with ${packResult.entryCount} files.`,
 );
-console.log(`Packed size: ${packResult.size} bytes, unpacked size: ${packResult.unpackedSize} bytes.`);
+console.log(
+  `Packed size: ${packResult.size} bytes, unpacked size: ${packResult.unpackedSize} bytes.`,
+);
