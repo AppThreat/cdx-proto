@@ -19,17 +19,9 @@ import {
 import type { Bom as Bom15 } from "./lib/bom-1.5_pb.js";
 import { BomSchema as BomSchema15 } from "./lib/bom-1.5_pb.js";
 import type { Bom as Bom16 } from "./lib/bom-1.6_pb.js";
-import {
-  BomSchema as BomSchema16,
-  LifecyclePhase as LifecyclePhase16,
-  LifecyclesSchema as LifecyclesSchema16,
-} from "./lib/bom-1.6_pb.js";
+import { BomSchema as BomSchema16 } from "./lib/bom-1.6_pb.js";
 import type { Bom as Bom17 } from "./lib/bom-1.7_pb.js";
-import {
-  BomSchema as BomSchema17,
-  LifecyclePhase as LifecyclePhase17,
-  LifecyclesSchema as LifecyclesSchema17,
-} from "./lib/bom-1.7_pb.js";
+import { BomSchema as BomSchema17 } from "./lib/bom-1.7_pb.js";
 
 export const supportedSpecVersions = ["1.5", "1.6", "1.7"] as const;
 
@@ -65,6 +57,39 @@ export type AnyBomJson = BomJsonByVersion[SupportedSpecVersion];
 
 type JsonLike = unknown;
 type JsonRecord = Record<string, unknown>;
+type EnumMapPair = {
+  canonicalToProto: Map<string, string>;
+  protoToCanonical: Map<string, string | undefined>;
+};
+type EnumValueDescriptorLike = {
+  name: string;
+};
+type EnumDescriptorLike = {
+  name: string;
+  sharedPrefix?: string;
+  typeName: string;
+  values: EnumValueDescriptorLike[];
+};
+type FieldDescriptorLike = {
+  enum?: EnumDescriptorLike;
+  fieldKind: string;
+  jsonName: string;
+  listKind?: string;
+  localName: string;
+  mapKind?: string;
+  message?: MessageDescriptorLike;
+  name: string;
+};
+type MessageDescriptorLike = {
+  fields: FieldDescriptorLike[];
+  name: string;
+};
+type NormalizationDirection = "fromProto" | "toProto";
+
+type BomVersionCarrier = {
+  specVersion?: unknown;
+  spec_version?: unknown;
+};
 
 const bomSchemas: BomSchemaByVersion = {
   "1.5": BomSchema15,
@@ -72,171 +97,90 @@ const bomSchemas: BomSchemaByVersion = {
   "1.7": BomSchema17,
 };
 
-type BomVersionCarrier = {
-  specVersion?: unknown;
-  spec_version?: unknown;
+const SUPPORTED_BINARY_READ_ORDER = [...supportedSpecVersions].reverse();
+
+const FIELD_ALIASES: Record<string, string> = {
+  bomRef: "bom-ref",
+  mimeType: "mime-type",
+  xTrustBoundary: "x-trust-boundary",
 };
 
-const PREDEFINED_LIFECYCLE_PHASES = new Set([
-  "design",
-  "pre-build",
-  "build",
-  "post-build",
-  "operations",
-  "discovery",
-  "decommission",
-]);
+const MESSAGE_FIELD_ALIASES: Record<string, string> = {
+  "CommonExtension.name": "commonExtensionName",
+  "CommonExtension.value": "commonExtensionValue",
+  "CustomExtension.name": "customExtensionName",
+  "CustomExtension.value": "customExtensionValue",
+  "DistributionConstraints.tlp": "tlpClassification",
+  "Hash.value": "content",
+};
 
-const PREDEFINED_LIFECYCLE_PHASE_TO_ENUM_VALUE = {
-  design: "DESIGN",
-  "pre-build": "PRE_BUILD",
-  build: "BUILD",
-  "post-build": "POST_BUILD",
-  operations: "OPERATIONS",
-  discovery: "DISCOVERY",
-  decommission: "DECOMMISSION",
-} as const;
+const ENUM_CANONICAL_STYLE_OVERRIDES: Record<string, string> = {
+  Aggregate: "lower-underscore",
+  CO2MeasureUnitType: "co2-measure-unit",
+  CommonExtensionName: "lower-camel",
+  CryptoImplementationPlatform: "implementation-platform",
+  EnergyMeasureUnitType: "energy-measure-unit",
+  EvidenceFieldType: "lower-camel",
+  HashAlg: "hash-algorithm",
+  ImpactAnalysisJustification: "lower-underscore",
+  ImpactAnalysisState: "lower-underscore",
+  ScoreMethod: "score-method",
+  TlpClassification: "upper-underscore",
+  VulnerabilityAffectedStatus: "lower-underscore",
+  VulnerabilityResponse: "lower-underscore",
+};
 
-const LIFECYCLE_MESSAGE_BUILDERS = {
-  "1.6": {
-    phaseEnum: LifecyclePhase16,
-    schema: LifecyclesSchema16,
+const SPECIAL_ENUM_CANONICAL_VALUES: Record<string, Record<string, string>> = {
+  CO2MeasureUnitType: {
+    TONNES_CO2_EQUIVALENT: "tCO2eq",
   },
-  "1.7": {
-    phaseEnum: LifecyclePhase17,
-    schema: LifecyclesSchema17,
+  CryptoImplementationPlatform: {
+    ARMV7_A: "armv7-a",
+    ARMV7_M: "armv7-m",
+    ARMV8_A: "armv8-a",
+    ARMV8_M: "armv8-m",
+    ARMV9_A: "armv9-a",
+    ARMV9_M: "armv9-m",
+    GENERIC: "generic",
+    OTHER: "other",
+    PPC64: "ppc64",
+    PPC64LE: "ppc64le",
+    S390X: "s390x",
+    UNKNOWN: "unknown",
+    X86_32: "x86_32",
+    X86_64: "x86_64",
   },
-} as const;
+  EnergyMeasureUnitType: {
+    KILOWATT_HOURS: "kWh",
+  },
+  HashAlg: {
+    BLAKE_2_B_256: "BLAKE2b-256",
+    BLAKE_2_B_384: "BLAKE2b-384",
+    BLAKE_2_B_512: "BLAKE2b-512",
+    BLAKE_3: "BLAKE3",
+    MD_5: "MD5",
+    SHA_1: "SHA-1",
+    SHA_256: "SHA-256",
+    SHA_384: "SHA-384",
+    SHA_3_256: "SHA3-256",
+    SHA_3_384: "SHA3-384",
+    SHA_3_512: "SHA3-512",
+    SHA_512: "SHA-512",
+    STREEBOG_256: "STREEBOG_256",
+    STREEBOG_512: "STREEBOG_512",
+  },
+  ScoreMethod: {
+    CVSSV2: "CVSSv2",
+    CVSSV3: "CVSSv3",
+    CVSSV31: "CVSSv31",
+    CVSSV4: "CVSSv4",
+    OTHER: "other",
+    OWASP: "OWASP",
+    SSVC: "SSVC",
+  },
+};
 
-const COMPONENT_TYPE_TO_ENUM_VALUE = {
-  application: "CLASSIFICATION_APPLICATION",
-  framework: "CLASSIFICATION_FRAMEWORK",
-  library: "CLASSIFICATION_LIBRARY",
-  container: "CLASSIFICATION_CONTAINER",
-  platform: "CLASSIFICATION_PLATFORM",
-  "operating-system": "CLASSIFICATION_OPERATING_SYSTEM",
-  device: "CLASSIFICATION_DEVICE",
-  "device-driver": "CLASSIFICATION_DEVICE_DRIVER",
-  firmware: "CLASSIFICATION_FIRMWARE",
-  file: "CLASSIFICATION_FILE",
-  "machine-learning-model": "CLASSIFICATION_MACHINE_LEARNING_MODEL",
-  data: "CLASSIFICATION_DATA",
-  "cryptographic-asset": "CLASSIFICATION_CRYPTOGRAPHIC_ASSET",
-} as const;
-
-const EXTERNAL_REFERENCE_TYPES = new Set([
-  "vcs",
-  "issue-tracker",
-  "website",
-  "advisories",
-  "bom",
-  "mailing-list",
-  "social",
-  "chat",
-  "documentation",
-  "support",
-  "source-distribution",
-  "distribution",
-  "distribution-intake",
-  "license",
-  "build-meta",
-  "build-system",
-  "release-notes",
-  "security-contact",
-  "model-card",
-  "log",
-  "configuration",
-  "evidence",
-  "formulation",
-  "attestation",
-  "threat-model",
-  "adversary-model",
-  "risk-assessment",
-  "vulnerability-assertion",
-  "exploitability-statement",
-  "pentest-report",
-  "static-analysis-report",
-  "dynamic-analysis-report",
-  "runtime-analysis-report",
-  "component-analysis-report",
-  "maturity-report",
-  "certification-report",
-  "codified-infrastructure",
-  "quality-metrics",
-  "poam",
-  "electronic-signature",
-  "digital-signature",
-  "rfc-9116",
-  "patent",
-  "patent-family",
-  "patent-assertion",
-  "citation",
-  "other",
-]);
-
-const HASH_ALGORITHM_TO_ENUM_VALUE = {
-  MD5: "HASH_ALG_MD_5",
-  "SHA-1": "HASH_ALG_SHA_1",
-  "SHA-256": "HASH_ALG_SHA_256",
-  "SHA-384": "HASH_ALG_SHA_384",
-  "SHA-512": "HASH_ALG_SHA_512",
-  "SHA3-256": "HASH_ALG_SHA_3_256",
-  "SHA3-384": "HASH_ALG_SHA_3_384",
-  "SHA3-512": "HASH_ALG_SHA_3_512",
-  "BLAKE2b-256": "HASH_ALG_BLAKE_2_B_256",
-  "BLAKE2b-384": "HASH_ALG_BLAKE_2_B_384",
-  "BLAKE2b-512": "HASH_ALG_BLAKE_2_B_512",
-  BLAKE3: "HASH_ALG_BLAKE_3",
-  STREEBOG_256: "HASH_ALG_STREEBOG_256",
-  STREEBOG_512: "HASH_ALG_STREEBOG_512",
-} as const;
-
-const HASH_ENUM_VALUE_TO_ALGORITHM = Object.fromEntries(
-  Object.entries(HASH_ALGORITHM_TO_ENUM_VALUE).map(([algorithm, enumValue]) => [
-    enumValue,
-    algorithm,
-  ]),
-);
-
-const EVIDENCE_FIELD_TO_ENUM_VALUE = {
-  group: "EVIDENCE_FIELD_GROUP",
-  name: "EVIDENCE_FIELD_NAME",
-  version: "EVIDENCE_FIELD_VERSION",
-  purl: "EVIDENCE_FIELD_PURL",
-  cpe: "EVIDENCE_FIELD_CPE",
-  swid: "EVIDENCE_FIELD_SWID",
-  hash: "EVIDENCE_FIELD_HASH",
-  omniborId: "EVIDENCE_FIELD_OMNIBOR_ID",
-  swhid: "EVIDENCE_FIELD_SWHID",
-} as const;
-
-const EVIDENCE_ENUM_VALUE_TO_FIELD = Object.fromEntries(
-  Object.entries(EVIDENCE_FIELD_TO_ENUM_VALUE).map(([field, enumValue]) => [
-    enumValue,
-    field,
-  ]),
-);
-
-const EVIDENCE_TECHNIQUE_TO_ENUM_VALUE = {
-  "source-code-analysis": "EVIDENCE_TECHNIQUE_SOURCE_CODE_ANALYSIS",
-  "binary-analysis": "EVIDENCE_TECHNIQUE_BINARY_ANALYSIS",
-  "manifest-analysis": "EVIDENCE_TECHNIQUE_MANIFEST_ANALYSIS",
-  "ast-fingerprint": "EVIDENCE_TECHNIQUE_AST_FINGERPRINT",
-  "hash-comparison": "EVIDENCE_TECHNIQUE_HASH_COMPARISON",
-  instrumentation: "EVIDENCE_TECHNIQUE_INSTRUMENTATION",
-  "dynamic-analysis": "EVIDENCE_TECHNIQUE_DYNAMIC_ANALYSIS",
-  filename: "EVIDENCE_TECHNIQUE_FILENAME",
-  attestation: "EVIDENCE_TECHNIQUE_ATTESTATION",
-  other: "EVIDENCE_TECHNIQUE_OTHER",
-} as const;
-
-const EVIDENCE_ENUM_VALUE_TO_TECHNIQUE = Object.fromEntries(
-  Object.entries(EVIDENCE_TECHNIQUE_TO_ENUM_VALUE).map(
-    ([technique, enumValue]) => [enumValue, technique],
-  ),
-);
-
-const SUPPORTED_BINARY_READ_ORDER = [...supportedSpecVersions].reverse();
+const enumMapCache = new Map<string, EnumMapPair>();
 
 function isJsonRecord(value: JsonLike): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -258,398 +202,6 @@ function sanitizeBomJsonValue(value: JsonLike): JsonLike {
   }
 
   return value;
-}
-
-function normalizeLifecyclePhaseForProto(phase: unknown): unknown {
-  const normalizedPhase = `${phase ?? ""}`.trim().toLowerCase();
-  if (!PREDEFINED_LIFECYCLE_PHASES.has(normalizedPhase)) {
-    return phase;
-  }
-
-  return PREDEFINED_LIFECYCLE_PHASE_TO_ENUM_VALUE[
-    normalizedPhase as keyof typeof PREDEFINED_LIFECYCLE_PHASE_TO_ENUM_VALUE
-  ];
-}
-
-function normalizeLifecyclePhaseFromProto(phase: unknown): string | undefined {
-  const normalizedPhase = `${phase ?? ""}`
-    .trim()
-    .replace(/^LIFECYCLE_PHASE_/u, "")
-    .toLowerCase()
-    .replaceAll("_", "-");
-  return normalizedPhase === "null" || normalizedPhase === ""
-    ? undefined
-    : normalizedPhase;
-}
-
-function isComponentLikeObject(value: JsonLike): value is JsonRecord {
-  return Boolean(
-    isJsonRecord(value) &&
-      typeof value.name === "string" &&
-      typeof value.type === "string",
-  );
-}
-
-function isExternalReferenceLikeObject(value: JsonLike): value is JsonRecord {
-  return Boolean(
-    isJsonRecord(value) &&
-      typeof value.type === "string" &&
-      typeof value.url === "string",
-  );
-}
-
-function isHashLikeObject(value: JsonLike): value is JsonRecord {
-  return Boolean(
-    isJsonRecord(value) &&
-      typeof value.alg === "string" &&
-      (typeof value.content === "string" || typeof value.value === "string"),
-  );
-}
-
-function isEvidenceIdentityLikeObject(value: JsonLike): value is JsonRecord {
-  return Boolean(
-    isJsonRecord(value) &&
-      typeof value.field === "string" &&
-      (value.concludedValue !== undefined || Array.isArray(value.methods)),
-  );
-}
-
-function isEvidenceMethodLikeObject(value: JsonLike): value is JsonRecord {
-  return Boolean(
-    isJsonRecord(value) &&
-      typeof value.technique === "string" &&
-      (value.value !== undefined || value.confidence !== undefined),
-  );
-}
-
-function normalizeComponentTypeForProto(type: unknown): unknown {
-  const normalizedType = `${type ?? ""}`.trim().toLowerCase();
-  return (
-    COMPONENT_TYPE_TO_ENUM_VALUE[
-      normalizedType as keyof typeof COMPONENT_TYPE_TO_ENUM_VALUE
-    ] ?? type
-  );
-}
-
-function normalizeComponentTypeFromProto(type: unknown): string | undefined {
-  const normalizedType = `${type ?? ""}`
-    .trim()
-    .replace(/^CLASSIFICATION_/u, "")
-    .toLowerCase()
-    .replaceAll("_", "-");
-  return normalizedType === "null" || normalizedType === ""
-    ? undefined
-    : normalizedType;
-}
-
-function normalizeExternalReferenceTypeForProto(type: unknown): unknown {
-  const normalizedType = `${type ?? ""}`.trim().toLowerCase();
-  if (!EXTERNAL_REFERENCE_TYPES.has(normalizedType)) {
-    return type;
-  }
-
-  return `EXTERNAL_REFERENCE_TYPE_${normalizedType.toUpperCase().replaceAll("-", "_")}`;
-}
-
-function normalizeExternalReferenceTypeFromProto(
-  type: unknown,
-): string | undefined {
-  const normalizedType = `${type ?? ""}`
-    .trim()
-    .replace(/^EXTERNAL_REFERENCE_TYPE_/u, "")
-    .toLowerCase()
-    .replaceAll("_", "-");
-  return normalizedType === "null" || normalizedType === ""
-    ? undefined
-    : normalizedType;
-}
-
-function normalizeHashAlgorithmForProto(algorithm: unknown): unknown {
-  return (
-    HASH_ALGORITHM_TO_ENUM_VALUE[
-      `${algorithm ?? ""}`.trim() as keyof typeof HASH_ALGORITHM_TO_ENUM_VALUE
-    ] ?? algorithm
-  );
-}
-
-function normalizeHashAlgorithmFromProto(
-  algorithm: unknown,
-): string | undefined {
-  const normalizedAlgorithm =
-    HASH_ENUM_VALUE_TO_ALGORITHM[`${algorithm ?? ""}`.trim()];
-  return normalizedAlgorithm === "NULL" || normalizedAlgorithm === ""
-    ? undefined
-    : normalizedAlgorithm;
-}
-
-function normalizeEvidenceFieldForProto(field: unknown): unknown {
-  return (
-    EVIDENCE_FIELD_TO_ENUM_VALUE[
-      `${field ?? ""}`.trim() as keyof typeof EVIDENCE_FIELD_TO_ENUM_VALUE
-    ] ?? field
-  );
-}
-
-function normalizeEvidenceFieldFromProto(field: unknown): string | undefined {
-  const normalizedField = EVIDENCE_ENUM_VALUE_TO_FIELD[`${field ?? ""}`.trim()];
-  return normalizedField === "null" || normalizedField === ""
-    ? undefined
-    : normalizedField;
-}
-
-function normalizeEvidenceTechniqueForProto(technique: unknown): unknown {
-  return (
-    EVIDENCE_TECHNIQUE_TO_ENUM_VALUE[
-      `${technique ?? ""}`.trim() as keyof typeof EVIDENCE_TECHNIQUE_TO_ENUM_VALUE
-    ] ?? technique
-  );
-}
-
-function normalizeEvidenceTechniqueFromProto(
-  technique: unknown,
-): string | undefined {
-  const normalizedTechnique =
-    EVIDENCE_ENUM_VALUE_TO_TECHNIQUE[`${technique ?? ""}`.trim()];
-  return normalizedTechnique === "null" || normalizedTechnique === ""
-    ? undefined
-    : normalizedTechnique;
-}
-
-function normalizeComponentLikeValueForProto(value: JsonLike): JsonLike {
-  if (Array.isArray(value)) {
-    return value.map((entry) => normalizeComponentLikeValueForProto(entry));
-  }
-
-  if (!isJsonRecord(value)) {
-    return value;
-  }
-
-  const normalizedValue = Object.fromEntries(
-    Object.entries(value).map(([key, entry]) => [
-      key,
-      normalizeComponentLikeValueForProto(entry),
-    ]),
-  );
-
-  if (isComponentLikeObject(normalizedValue)) {
-    return {
-      ...normalizedValue,
-      type: normalizeComponentTypeForProto(normalizedValue.type),
-    };
-  }
-
-  if (isHashLikeObject(normalizedValue)) {
-    const hashValue = normalizedValue as JsonRecord;
-    return {
-      ...hashValue,
-      alg: normalizeHashAlgorithmForProto(hashValue.alg),
-      value: hashValue.content ?? hashValue.value,
-    };
-  }
-
-  if (isEvidenceIdentityLikeObject(normalizedValue)) {
-    const evidenceIdentityValue = normalizedValue as JsonRecord;
-    return {
-      ...evidenceIdentityValue,
-      field: normalizeEvidenceFieldForProto(evidenceIdentityValue.field),
-    };
-  }
-
-  if (isEvidenceMethodLikeObject(normalizedValue)) {
-    const evidenceMethodValue = normalizedValue as JsonRecord;
-    return {
-      ...evidenceMethodValue,
-      technique: normalizeEvidenceTechniqueForProto(
-        evidenceMethodValue.technique,
-      ),
-    };
-  }
-
-  if (isExternalReferenceLikeObject(normalizedValue)) {
-    const externalReferenceValue = normalizedValue as JsonRecord;
-    return {
-      ...externalReferenceValue,
-      type: normalizeExternalReferenceTypeForProto(externalReferenceValue.type),
-    };
-  }
-
-  return normalizedValue;
-}
-
-function normalizeComponentLikeValueFromProto(value: JsonLike): JsonLike {
-  if (Array.isArray(value)) {
-    return value.map((entry) => normalizeComponentLikeValueFromProto(entry));
-  }
-
-  if (!isJsonRecord(value)) {
-    return value;
-  }
-
-  const normalizedValue = Object.fromEntries(
-    Object.entries(value).map(([key, entry]) => [
-      key,
-      normalizeComponentLikeValueFromProto(entry),
-    ]),
-  );
-
-  if (isComponentLikeObject(normalizedValue)) {
-    return {
-      ...normalizedValue,
-      type: normalizeComponentTypeFromProto(normalizedValue.type),
-    };
-  }
-
-  if (isHashLikeObject(normalizedValue)) {
-    const hashValue = normalizedValue as JsonRecord;
-    return {
-      ...hashValue,
-      alg: normalizeHashAlgorithmFromProto(hashValue.alg),
-      content: hashValue.value ?? hashValue.content,
-      value: undefined,
-    };
-  }
-
-  if (isEvidenceIdentityLikeObject(normalizedValue)) {
-    const evidenceIdentityValue = normalizedValue as JsonRecord;
-    return {
-      ...evidenceIdentityValue,
-      field: normalizeEvidenceFieldFromProto(evidenceIdentityValue.field),
-    };
-  }
-
-  if (isEvidenceMethodLikeObject(normalizedValue)) {
-    const evidenceMethodValue = normalizedValue as JsonRecord;
-    return {
-      ...evidenceMethodValue,
-      technique: normalizeEvidenceTechniqueFromProto(
-        evidenceMethodValue.technique,
-      ),
-    };
-  }
-
-  if (isExternalReferenceLikeObject(normalizedValue)) {
-    const externalReferenceValue = normalizedValue as JsonRecord;
-    return {
-      ...externalReferenceValue,
-      type: normalizeExternalReferenceTypeFromProto(
-        externalReferenceValue.type,
-      ),
-    };
-  }
-
-  return normalizedValue;
-}
-
-function buildLifecycleMessages(
-  specVersion: SupportedSpecVersion,
-  lifecycles: JsonLike,
-): unknown {
-  const lifecycleBuilder =
-    LIFECYCLE_MESSAGE_BUILDERS[
-      specVersion as keyof typeof LIFECYCLE_MESSAGE_BUILDERS
-    ];
-  if (!lifecycleBuilder || !Array.isArray(lifecycles)) {
-    return lifecycles;
-  }
-
-  return lifecycles.map((lifecycle) => {
-    const lifecycleRecord = isJsonRecord(lifecycle) ? lifecycle : {};
-    if (typeof lifecycleRecord.phase === "string") {
-      const { phase, ...rest } = lifecycleRecord;
-      const lifecyclePhase = normalizeLifecyclePhaseForProto(phase);
-      return create(lifecycleBuilder.schema, {
-        ...rest,
-        choice: {
-          case: "phase",
-          value:
-            lifecycleBuilder.phaseEnum[
-              `${lifecyclePhase}` as keyof typeof lifecycleBuilder.phaseEnum
-            ] ?? lifecycleBuilder.phaseEnum.DESIGN,
-        },
-      });
-    }
-
-    if (typeof lifecycleRecord.name === "string") {
-      const { name, ...rest } = lifecycleRecord;
-      return create(lifecycleBuilder.schema, {
-        ...rest,
-        choice: {
-          case: "name",
-          value: name,
-        },
-      });
-    }
-
-    return create(lifecycleBuilder.schema, lifecycleRecord);
-  });
-}
-
-function patchParsedBomMessage(
-  bomMessage: AnyBom,
-  bomJson: JsonLike,
-  specVersion: SupportedSpecVersion,
-): AnyBom {
-  if (
-    !isJsonRecord(bomJson) ||
-    !isJsonRecord(bomJson.metadata) ||
-    !bomMessage.metadata
-  ) {
-    return bomMessage;
-  }
-
-  if (!Array.isArray(bomJson.metadata.lifecycles)) {
-    return bomMessage;
-  }
-
-  bomMessage.metadata.lifecycles = buildLifecycleMessages(
-    specVersion,
-    bomJson.metadata.lifecycles,
-  ) as typeof bomMessage.metadata.lifecycles;
-  return bomMessage;
-}
-
-function normalizeBomJsonFromProto(bomJson: JsonLike, bom?: AnyBom): JsonLike {
-  if (!isJsonRecord(bomJson)) {
-    return bomJson;
-  }
-
-  const metadata = isJsonRecord(bomJson.metadata)
-    ? bomJson.metadata
-    : undefined;
-  const normalizedMetadata = metadata
-    ? {
-        ...metadata,
-        lifecycles: Array.isArray(metadata.lifecycles)
-          ? metadata.lifecycles.map((lifecycle) => {
-              if (
-                !isJsonRecord(lifecycle) ||
-                typeof lifecycle.phase !== "string"
-              ) {
-                return lifecycle;
-              }
-
-              return {
-                ...lifecycle,
-                phase: normalizeLifecyclePhaseFromProto(lifecycle.phase),
-              };
-            })
-          : metadata.lifecycles,
-      }
-    : metadata;
-
-  return sanitizeBomJsonValue(
-    normalizeComponentLikeValueFromProto({
-      bomFormat: "CycloneDX",
-      ...bomJson,
-      metadata: normalizedMetadata,
-      specVersion:
-        typeof bomJson.specVersion === "string"
-          ? bomJson.specVersion
-          : typeof bomJson.spec_version === "string"
-            ? bomJson.spec_version
-            : bom?.specVersion,
-    }),
-  );
 }
 
 function normalizeSpecVersion(
@@ -687,6 +239,312 @@ function assertMatchingSpecVersion(
       `CycloneDX spec version mismatch: expected ${expected}, received ${actual}.`,
     );
   }
+}
+
+function toLowerCamelCase(value: string): string {
+  const [firstPart = "", ...rest] = value.toLowerCase().split("_");
+  return `${firstPart}${rest
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join("")}`;
+}
+
+function getEnumPrefix(enumDescriptor: EnumDescriptorLike): string {
+  if (typeof enumDescriptor.sharedPrefix === "string") {
+    return enumDescriptor.sharedPrefix.toUpperCase();
+  }
+
+  const [firstName = ""] = enumDescriptor.values.map((entry) => entry.name);
+  let prefix = firstName;
+  for (const enumValue of enumDescriptor.values) {
+    let index = 0;
+    while (
+      index < prefix.length &&
+      index < enumValue.name.length &&
+      prefix[index] === enumValue.name[index]
+    ) {
+      index += 1;
+    }
+    prefix = prefix.slice(0, index);
+  }
+
+  const separatorIndex = prefix.lastIndexOf("_");
+  return separatorIndex === -1 ? "" : prefix.slice(0, separatorIndex + 1);
+}
+
+function enumSuffixToCanonical(
+  enumDescriptor: EnumDescriptorLike,
+  suffix: string,
+): string | undefined {
+  if (suffix === "NULL" || suffix === "UNSPECIFIED") {
+    return undefined;
+  }
+
+  const specialValue =
+    SPECIAL_ENUM_CANONICAL_VALUES[enumDescriptor.name]?.[suffix];
+  if (specialValue !== undefined) {
+    return specialValue;
+  }
+
+  switch (ENUM_CANONICAL_STYLE_OVERRIDES[enumDescriptor.name]) {
+    case "lower-camel":
+      return toLowerCamelCase(suffix);
+    case "lower-underscore":
+      return suffix.toLowerCase();
+    case "upper-underscore":
+      return suffix;
+    default:
+      return suffix.toLowerCase().replaceAll("_", "-");
+  }
+}
+
+function getEnumMaps(enumDescriptor: EnumDescriptorLike): EnumMapPair {
+  const cachedMaps = enumMapCache.get(enumDescriptor.typeName);
+  if (cachedMaps) {
+    return cachedMaps;
+  }
+
+  const prefix = getEnumPrefix(enumDescriptor);
+  const canonicalToProto = new Map<string, string>();
+  const protoToCanonical = new Map<string, string | undefined>();
+
+  for (const enumValue of enumDescriptor.values) {
+    const suffix = enumValue.name.startsWith(prefix)
+      ? enumValue.name.slice(prefix.length)
+      : enumValue.name;
+    const canonicalValue = enumSuffixToCanonical(enumDescriptor, suffix);
+    protoToCanonical.set(enumValue.name, canonicalValue);
+    if (canonicalValue !== undefined) {
+      canonicalToProto.set(canonicalValue, enumValue.name);
+    }
+  }
+
+  const enumMaps = {
+    canonicalToProto,
+    protoToCanonical,
+  };
+  enumMapCache.set(enumDescriptor.typeName, enumMaps);
+  return enumMaps;
+}
+
+function transformEnumValue(
+  enumDescriptor: EnumDescriptorLike,
+  value: JsonLike,
+  direction: NormalizationDirection,
+): JsonLike {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const enumMaps = getEnumMaps(enumDescriptor);
+  if (direction === "toProto") {
+    if (enumMaps.protoToCanonical.has(value)) {
+      return value;
+    }
+    return enumMaps.canonicalToProto.get(value) ?? value;
+  }
+
+  return enumMaps.protoToCanonical.get(value) ?? value;
+}
+
+function getFieldAlias(
+  messageDescriptor: MessageDescriptorLike,
+  fieldDescriptor: FieldDescriptorLike,
+): string | undefined {
+  return (
+    MESSAGE_FIELD_ALIASES[
+      `${messageDescriptor.name}.${fieldDescriptor.localName}`
+    ] ?? FIELD_ALIASES[fieldDescriptor.localName]
+  );
+}
+
+function getFieldInputKeys(
+  messageDescriptor: MessageDescriptorLike,
+  fieldDescriptor: FieldDescriptorLike,
+): string[] {
+  return Array.from(
+    new Set(
+      [
+        getFieldAlias(messageDescriptor, fieldDescriptor),
+        fieldDescriptor.jsonName,
+        fieldDescriptor.localName,
+        fieldDescriptor.name,
+        `${fieldDescriptor.name}`.replaceAll("_", "-"),
+      ].filter((entry): entry is string => Boolean(entry)),
+    ),
+  );
+}
+
+function getFieldOutputKey(
+  messageDescriptor: MessageDescriptorLike,
+  fieldDescriptor: FieldDescriptorLike,
+): string {
+  return (
+    getFieldAlias(messageDescriptor, fieldDescriptor) ??
+    fieldDescriptor.jsonName
+  );
+}
+
+function transformFieldValue(
+  fieldDescriptor: FieldDescriptorLike,
+  value: JsonLike,
+  direction: NormalizationDirection,
+): JsonLike {
+  switch (fieldDescriptor.fieldKind) {
+    case "enum":
+      if (!fieldDescriptor.enum) {
+        return value;
+      }
+      return transformEnumValue(fieldDescriptor.enum, value, direction);
+    case "list":
+      if (!Array.isArray(value)) {
+        return value;
+      }
+      if (fieldDescriptor.listKind === "enum" && fieldDescriptor.enum) {
+        const enumDescriptor = fieldDescriptor.enum;
+        return value.map((entry) =>
+          transformEnumValue(enumDescriptor, entry, direction),
+        );
+      }
+      if (fieldDescriptor.listKind === "message" && fieldDescriptor.message) {
+        const messageDescriptor = fieldDescriptor.message;
+        return value.map((entry) =>
+          transformMessageValue(messageDescriptor, entry, direction),
+        );
+      }
+      return value;
+    case "map":
+      if (!isJsonRecord(value)) {
+        return value;
+      }
+      if (fieldDescriptor.mapKind === "enum" && fieldDescriptor.enum) {
+        const enumDescriptor = fieldDescriptor.enum;
+        return Object.fromEntries(
+          Object.entries(value).map(([key, entry]) => [
+            key,
+            transformEnumValue(enumDescriptor, entry, direction),
+          ]),
+        );
+      }
+      if (fieldDescriptor.mapKind === "message" && fieldDescriptor.message) {
+        const messageDescriptor = fieldDescriptor.message;
+        return Object.fromEntries(
+          Object.entries(value).map(([key, entry]) => [
+            key,
+            transformMessageValue(messageDescriptor, entry, direction),
+          ]),
+        );
+      }
+      return value;
+    case "message":
+      if (!fieldDescriptor.message) {
+        return value;
+      }
+      return transformMessageValue(fieldDescriptor.message, value, direction);
+    default:
+      return value;
+  }
+}
+
+function transformMessageValue(
+  messageDescriptor: MessageDescriptorLike,
+  value: JsonLike,
+  direction: NormalizationDirection,
+): JsonLike {
+  if (!isJsonRecord(value)) {
+    return value;
+  }
+
+  if (direction === "toProto") {
+    const normalizedValue: JsonRecord = { ...value };
+    for (const fieldDescriptor of messageDescriptor.fields) {
+      const sourceKey = getFieldInputKeys(
+        messageDescriptor,
+        fieldDescriptor,
+      ).find((key) => Object.hasOwn(value, key));
+      if (!sourceKey) {
+        continue;
+      }
+      const transformedValue = transformFieldValue(
+        fieldDescriptor,
+        value[sourceKey],
+        direction,
+      );
+      for (const inputKey of getFieldInputKeys(
+        messageDescriptor,
+        fieldDescriptor,
+      )) {
+        if (inputKey !== fieldDescriptor.jsonName) {
+          delete normalizedValue[inputKey];
+        }
+      }
+      normalizedValue[fieldDescriptor.jsonName] = transformedValue;
+    }
+    return normalizedValue;
+  }
+
+  const normalizedValue: JsonRecord = {};
+  for (const fieldDescriptor of messageDescriptor.fields) {
+    const sourceKey = [
+      fieldDescriptor.jsonName,
+      fieldDescriptor.localName,
+      fieldDescriptor.name,
+    ].find((key) => Object.hasOwn(value, key));
+    if (!sourceKey) {
+      continue;
+    }
+
+    normalizedValue[getFieldOutputKey(messageDescriptor, fieldDescriptor)] =
+      transformFieldValue(fieldDescriptor, value[sourceKey], direction);
+  }
+  return normalizedValue;
+}
+
+function normalizeBomJsonForProto(
+  schema: AnyBomSchema,
+  bomJson: JsonLike,
+): JsonLike {
+  const normalizedBomJson = sanitizeBomJsonValue(bomJson);
+  if (!isJsonRecord(normalizedBomJson)) {
+    return normalizedBomJson;
+  }
+
+  const protoCompatibleJson = transformMessageValue(
+    schema,
+    normalizedBomJson,
+    "toProto",
+  );
+  if (isJsonRecord(protoCompatibleJson)) {
+    delete protoCompatibleJson.bomFormat;
+    delete protoCompatibleJson.bom_format;
+  }
+  return protoCompatibleJson;
+}
+
+function normalizeBomJsonFromProto(
+  schema: AnyBomSchema,
+  bomJson: JsonLike,
+  bom?: AnyBom,
+): JsonLike {
+  if (!isJsonRecord(bomJson)) {
+    return bomJson;
+  }
+
+  return sanitizeBomJsonValue({
+    bomFormat: "CycloneDX",
+    ...((transformMessageValue(
+      schema,
+      {
+        ...bomJson,
+        specVersion:
+          typeof bomJson.specVersion === "string"
+            ? bomJson.specVersion
+            : typeof bomJson.spec_version === "string"
+              ? bomJson.spec_version
+              : bom?.specVersion,
+      },
+      "fromProto",
+    ) as JsonRecord) || {}),
+  });
 }
 
 export function getBomSchema(specVersion: "1.5"): typeof BomSchema15;
@@ -791,15 +649,9 @@ export function decodeBomJson(
   options?: Partial<JsonReadOptions>,
 ): AnyBom {
   const normalized = normalizeSpecVersion(specVersion);
-  const normalizedJson = normalizeComponentLikeValueForProto(
-    sanitizeBomJsonValue(json),
-  );
-  const protoCompatibleJson = isJsonRecord(normalizedJson)
-    ? { ...normalizedJson }
-    : normalizedJson;
+  const schema = getBomSchema(normalized);
+  const protoCompatibleJson = normalizeBomJsonForProto(schema, json);
   if (isJsonRecord(protoCompatibleJson)) {
-    delete protoCompatibleJson.bomFormat;
-    delete protoCompatibleJson.bom_format;
     const versionCarrier = protoCompatibleJson as BomVersionCarrier;
     if (
       versionCarrier.specVersion !== undefined ||
@@ -809,16 +661,11 @@ export function decodeBomJson(
     }
   }
 
-  const bom = fromJson(
-    getBomSchema(normalized),
-    protoCompatibleJson as JsonValue,
-    options,
-  );
+  const bom = fromJson(schema, protoCompatibleJson as JsonValue, options);
   if (!bom.specVersion) {
     bom.specVersion = normalized;
   }
-
-  return patchParsedBomMessage(bom, protoCompatibleJson, normalized);
+  return bom;
 }
 
 export function decodeBomJsonString(
@@ -853,16 +700,14 @@ export function parseBomJson(
   json: JsonValue,
   options?: Partial<JsonReadOptions>,
 ): AnyBom {
-  const normalizedJson = normalizeComponentLikeValueForProto(
-    sanitizeBomJsonValue(json),
-  );
-  if (!isJsonRecord(normalizedJson)) {
+  const sanitizedBomJson = sanitizeBomJsonValue(json);
+  if (!isJsonRecord(sanitizedBomJson)) {
     throw new Error("CycloneDX BOM JSON must be an object.");
   }
 
   return decodeBomJson(
-    detectBomSpecVersion(normalizedJson as BomVersionCarrier),
-    normalizedJson as JsonValue,
+    detectBomSpecVersion(sanitizedBomJson as BomVersionCarrier),
+    sanitizedBomJson as JsonValue,
     options,
   );
 }
@@ -903,6 +748,7 @@ export function encodeBomJson(
   options?: Partial<JsonWriteOptions>,
 ): JsonValue {
   return normalizeBomJsonFromProto(
+    getBomSchemaForBom(bom),
     toJson(getBomSchemaForBom(bom), bom, options),
     bom,
   ) as JsonValue;
