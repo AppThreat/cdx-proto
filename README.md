@@ -20,9 +20,7 @@ import {
   parseBomJson,
 } from "@appthreat/cdx-proto";
 import { BomSchema as BomSchema16 } from "@appthreat/cdx-proto/v1.6";
-import {
-  fromJson,
-} from "@bufbuild/protobuf";
+import { fromJson } from "@bufbuild/protobuf";
 
 // Use version-specific entrypoints when you only need one schema version.
 const bom16 = fromJson(BomSchema16, {
@@ -63,6 +61,25 @@ const schema = getBomSchema(parsed.specVersion);
 - `parseBomJson(json)` and `parseBomJsonString(json)` auto-detect the schema from `specVersion` / `spec_version`.
 - `decodeBomBinary(specVersion, bytes)` decodes a protobuf BOM when the schema version is known.
 - `encodeBomBinary(bom)`, `encodeBomJson(bom)`, and `encodeBomJsonString(bom)` choose the correct schema from the BOM itself.
+
+### Canonical JSON guarantees
+
+The helper layer is designed to work with canonical CycloneDX JSON rather than protobuf-flavored JSON.
+
+- `parseBomJson()` and `decodeBomJson()` accept canonical CycloneDX input such as:
+  - root fields like `bomFormat` and `specVersion`
+  - dashed aliases such as `bom-ref`, `mime-type`, and `x-trust-boundary`
+  - canonical hash content fields like `hashes[].content`
+  - canonical standards/declarations objects instead of protobuf list wrappers
+- Undefined object properties and undefined array entries are sanitized before protobuf parsing so callers can pass ordinary JavaScript objects without manually stripping `undefined` values first.
+- `encodeBomJson()` and `encodeBomJsonString()` restore canonical CycloneDX JSON on output, including:
+  - `bomFormat: "CycloneDX"`
+  - the BOM `specVersion`
+  - canonical enum values instead of protobuf enum names such as `CLASSIFICATION_*`, `HASH_ALG_*`, or `EXTERNAL_REFERENCE_TYPE_*`
+  - canonical object shapes for `definitions` and `declarations`
+- `parseBomBinary()` auto-detects the embedded supported schema version (`1.5`, `1.6`, or `1.7`) and can be paired with `encodeBomJson()` to read protobuf BOMs back as canonical CycloneDX JSON.
+
+In short: if you provide canonical CycloneDX JSON to the helper API, you should get canonical CycloneDX JSON back after binary or message round-trips.
 
 ### Version-specific imports
 

@@ -182,6 +182,8 @@ const SPECIAL_ENUM_CANONICAL_VALUES: Record<string, Record<string, string>> = {
 
 const enumMapCache = new Map<string, EnumMapPair>();
 
+const BOM_OBJECT_WRAPPED_LIST_FIELDS = new Set(["declarations", "definitions"]);
+
 function isJsonRecord(value: JsonLike): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -202,6 +204,48 @@ function sanitizeBomJsonValue(value: JsonLike): JsonLike {
   }
 
   return value;
+}
+
+function shouldWrapBomObjectListField(
+  messageDescriptor: MessageDescriptorLike,
+  fieldDescriptor: FieldDescriptorLike,
+): boolean {
+  return (
+    messageDescriptor.name === "Bom" &&
+    BOM_OBJECT_WRAPPED_LIST_FIELDS.has(fieldDescriptor.jsonName)
+  );
+}
+
+function mergeBomObjectListEntries(entries: JsonLike[]): JsonLike {
+  const mergedEntry: JsonRecord = {};
+  for (const entry of entries) {
+    if (!isJsonRecord(entry)) {
+      continue;
+    }
+    for (const [key, value] of Object.entries(entry)) {
+      if (value === undefined) {
+        continue;
+      }
+      if (Array.isArray(value)) {
+        mergedEntry[key] = [
+          ...((mergedEntry[key] as JsonLike[]) || []),
+          ...value,
+        ];
+        continue;
+      }
+      if (isJsonRecord(value) && isJsonRecord(mergedEntry[key])) {
+        mergedEntry[key] = {
+          ...(mergedEntry[key] as JsonRecord),
+          ...value,
+        };
+        continue;
+      }
+      if (mergedEntry[key] === undefined) {
+        mergedEntry[key] = value;
+      }
+    }
+  }
+  return Object.keys(mergedEntry).length ? mergedEntry : undefined;
 }
 
 function normalizeSpecVersion(
@@ -464,9 +508,17 @@ function transformMessageValue(
       if (!sourceKey) {
         continue;
       }
+      const sourceValue = shouldWrapBomObjectListField(
+        messageDescriptor,
+        fieldDescriptor,
+      )
+        ? Array.isArray(value[sourceKey]) || !isJsonRecord(value[sourceKey])
+          ? value[sourceKey]
+          : [value[sourceKey]]
+        : value[sourceKey];
       const transformedValue = transformFieldValue(
         fieldDescriptor,
-        value[sourceKey],
+        sourceValue,
         direction,
       );
       for (const inputKey of getFieldInputKeys(
@@ -493,8 +545,19 @@ function transformMessageValue(
       continue;
     }
 
+    let transformedValue = transformFieldValue(
+      fieldDescriptor,
+      value[sourceKey],
+      direction,
+    );
+    if (shouldWrapBomObjectListField(messageDescriptor, fieldDescriptor)) {
+      transformedValue = Array.isArray(transformedValue)
+        ? mergeBomObjectListEntries(transformedValue)
+        : transformedValue;
+    }
+
     normalizedValue[getFieldOutputKey(messageDescriptor, fieldDescriptor)] =
-      transformFieldValue(fieldDescriptor, value[sourceKey], direction);
+      transformedValue;
   }
   return normalizedValue;
 }

@@ -425,6 +425,59 @@ test("advanced canonical enum styles round-trip for 1.6 and 1.7", () => {
   }
 });
 
+test("canonical definitions and declarations sections round-trip as objects", () => {
+  const json = roundTripBom("1.7", {
+    definitions: {
+      standards: [
+        {
+          "bom-ref": "std-1",
+          name: "ASVS",
+          version: "5.0",
+          requirements: [
+            {
+              "bom-ref": "std-req-1",
+              identifier: "V1.1",
+              title: "Authenticate requests",
+            },
+          ],
+        },
+      ],
+    },
+    declarations: {
+      claims: [
+        {
+          "bom-ref": "claim-1",
+          target: "pkg:npm/demo-app@1.0.0",
+          predicate: "meets-control",
+        },
+      ],
+      targets: {
+        components: [
+          {
+            type: "application",
+            name: "demo-app",
+            version: "1.0.0",
+          },
+        ],
+      },
+      affirmation: {
+        statement: "verified",
+      },
+    },
+  });
+
+  assert.equal(Array.isArray(json.definitions), false);
+  assert.equal(Array.isArray(json.declarations), false);
+  assert.equal(json.definitions.standards[0].name, "ASVS");
+  assert.equal(
+    json.definitions.standards[0].requirements[0].identifier,
+    "V1.1",
+  );
+  assert.equal(json.declarations.claims[0].predicate, "meets-control");
+  assert.equal(json.declarations.targets.components[0].name, "demo-app");
+  assert.equal(json.declarations.affirmation.statement, "verified");
+});
+
 test("parse helpers detect camelCase and proto field names", () => {
   const bomFromCamelCase = parseBomJson({
     specVersion: "1.5",
