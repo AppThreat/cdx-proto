@@ -26,10 +26,15 @@ if (!packResult) {
 
 const filePaths = new Set(packResult.files.map((file) => file.path));
 const requiredPaths = [
+  "dist/index.d.ts",
   "dist/index.js",
+  "dist/helpers.d.ts",
   "dist/helpers.js",
+  "dist/v1.5.d.ts",
   "dist/v1.5.js",
+  "dist/v1.6.d.ts",
   "dist/v1.6.js",
+  "dist/v1.7.d.ts",
   "dist/v1.7.js",
   "specification/bom-1.5.proto",
   "specification/bom-1.6.proto",

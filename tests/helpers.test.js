@@ -82,3 +82,14 @@ test("decodeBomJson rejects an explicit version mismatch", () => {
     /spec version mismatch/i,
   );
 });
+
+test("decodeBomJson accepts JSON without an embedded specVersion when the caller supplies one", () => {
+  const bom = decodeBomJson("1.6", {
+    version: 4,
+    serialNumber: "urn:uuid:22222222-2222-2222-2222-222222222222",
+  });
+
+  assert.equal(bom.$typeName, "cyclonedx.v1_6.Bom");
+  assert.equal(bom.version, 4);
+  assert.equal(bom.serialNumber, "urn:uuid:22222222-2222-2222-2222-222222222222");
+});

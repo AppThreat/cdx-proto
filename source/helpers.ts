@@ -198,7 +198,10 @@ export function decodeBomJson(
 ): AnyBom {
   const normalized = normalizeSpecVersion(specVersion);
   if (json && typeof json === "object" && !Array.isArray(json)) {
-    assertMatchingSpecVersion(normalized, json as BomVersionCarrier);
+    const versionCarrier = json as BomVersionCarrier;
+    if (versionCarrier.specVersion !== undefined || versionCarrier.spec_version !== undefined) {
+      assertMatchingSpecVersion(normalized, versionCarrier);
+    }
   }
 
   return fromJson(getBomSchema(normalized), json, options);
