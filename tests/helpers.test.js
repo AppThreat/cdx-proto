@@ -1,5 +1,5 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 
 import {
   createBom,
@@ -10,6 +10,7 @@ import {
   encodeBomJson,
   encodeBomJsonString,
   getBomSchema,
+  parseBomBinary,
   parseBomJson,
   parseBomJsonString,
   supportedSpecVersions,
@@ -45,6 +46,7 @@ test("createBom populates specVersion and round-trips binary/json", () => {
   assert.equal(decoded.version, 3);
 
   const json = encodeBomJson(bom);
+  assert.equal(json.bomFormat, "CycloneDX");
   assert.equal(json.specVersion, "1.6");
 
   const reparsed = parseBomJson(json);
@@ -55,6 +57,85 @@ test("createBom populates specVersion and round-trips binary/json", () => {
   const reparsedFromString = parseBomJsonString(jsonString);
   assert.equal(reparsedFromString.$typeName, "cyclonedx.v1_6.Bom");
   assert.equal(reparsedFromString.version, 3);
+});
+
+test("canonical CycloneDX JSON round-trips without protobuf enum leakage", () => {
+  const bom = parseBomJson(
+    {
+      bomFormat: "CycloneDX",
+      specVersion: "1.7",
+      version: 1,
+      metadata: {
+        component: {
+          type: "application",
+          name: "demo-app",
+          version: "1.0.0",
+          hashes: [{ alg: "SHA-256", content: "abc123" }],
+          externalReferences: [
+            {
+              type: "release-notes",
+              url: "https://example.invalid/release-notes",
+            },
+          ],
+          evidence: {
+            identity: [
+              {
+                field: "purl",
+                concludedValue: "pkg:npm/demo-app@1.0.0",
+                methods: [
+                  {
+                    technique: "dynamic-analysis",
+                    value: "scanner",
+                    confidence: 0.9,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        lifecycles: [{ phase: "design" }, { name: "custom" }],
+      },
+      components: [
+        undefined,
+        {
+          type: "library",
+          name: "dep",
+          version: "2.0.0",
+        },
+      ],
+    },
+    { ignoreUnknownFields: true },
+  );
+
+  const json = encodeBomJson(bom);
+  assert.equal(json.bomFormat, "CycloneDX");
+  assert.equal(json.specVersion, "1.7");
+  assert.equal(json.metadata.component.type, "application");
+  assert.deepEqual(json.metadata.component.hashes, [
+    { alg: "SHA-256", content: "abc123" },
+  ]);
+  assert.equal(
+    json.metadata.component.externalReferences[0].type,
+    "release-notes",
+  );
+  assert.equal(json.metadata.component.evidence.identity[0].field, "purl");
+  assert.equal(
+    json.metadata.component.evidence.identity[0].methods[0].technique,
+    "dynamic-analysis",
+  );
+  assert.deepEqual(json.metadata.lifecycles, [
+    { phase: "design" },
+    { name: "custom" },
+  ]);
+  assert.equal(json.components.length, 1);
+  assert.equal(json.components[0].type, "library");
+
+  const jsonString = encodeBomJsonString(bom);
+  assert.match(jsonString, /"bomFormat":"CycloneDX"/);
+  assert.doesNotMatch(
+    jsonString,
+    /CLASSIFICATION_|HASH_ALG_|EXTERNAL_REFERENCE_TYPE_|LIFECYCLE_PHASE_|EVIDENCE_/,
+  );
 });
 
 test("parse helpers detect camelCase and proto field names", () => {
@@ -91,5 +172,30 @@ test("decodeBomJson accepts JSON without an embedded specVersion when the caller
 
   assert.equal(bom.$typeName, "cyclonedx.v1_6.Bom");
   assert.equal(bom.version, 4);
-  assert.equal(bom.serialNumber, "urn:uuid:22222222-2222-2222-2222-222222222222");
+  assert.equal(
+    bom.serialNumber,
+    "urn:uuid:22222222-2222-2222-2222-222222222222",
+  );
+});
+
+test("parseBomBinary auto-detects the embedded CycloneDX spec version", () => {
+  const bom = parseBomJson({
+    bomFormat: "CycloneDX",
+    specVersion: "1.6",
+    version: 1,
+    metadata: {
+      component: {
+        type: "application",
+        name: "binary-demo",
+      },
+    },
+  });
+
+  const decoded = parseBomBinary(encodeBomBinary(bom));
+  assert.equal(decoded.$typeName, "cyclonedx.v1_6.Bom");
+  assert.equal(decoded.specVersion, "1.6");
+
+  const json = encodeBomJson(decoded);
+  assert.equal(json.bomFormat, "CycloneDX");
+  assert.equal(json.metadata.component.type, "application");
 });
